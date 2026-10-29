@@ -1,0 +1,40 @@
+{
+  "name": "trendlens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ติดตามและวิเคราะห์หุ้นเทคสหรัฐฯ สำหรับใช้งานส่วนตัวบน localhost",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n web,worker -c cyan,magenta \"next dev -H 127.0.0.1 -p 3000\" \"tsx watch worker/index.ts\"",
+    "demo": "concurrently -k -n web,worker -c cyan,magenta \"next dev -H 127.0.0.1 -p 3000\" \"tsx worker/index.ts --demo\"",
+    "build": "next build",
+    "start": "concurrently -k -n web,worker -c cyan,magenta \"next start -H 127.0.0.1 -p 3000\" \"tsx worker/index.ts\"",
+    "worker": "tsx worker/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-sqlite3": "13.0.3",
+    "lightweight-charts": "5.2.1",
+    "next": "16.4.3",
+    "react": "19.2.9",
+    "react-dom": "19.2.9"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "24.19.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "concurrently": "10.0.6",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  },
+  "allowScripts": {
+    "better-sqlite3@13.0.3": false,
+    "esbuild@0.28.2": true
+  }
+}

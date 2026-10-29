@@ -1,0 +1,30 @@
+# dependencies / build
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# secrets — ห้าม commit
+.env
+.env.*
+!.env.example
+
+# ข้อมูลส่วนตัว (SQLite: ราคา, บันทึก, สัญญาณ, สถานะจำลอง)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# logs
+logs/
+*.log
+npm-debug.log*
+
+# ค่าตั้งส่วนตัว (ใช้ trendlens.config.example.json เป็นแม่แบบ)
+trendlens.config.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

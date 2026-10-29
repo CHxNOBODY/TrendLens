@@ -1,287 +1,332 @@
-# TrendLens
+# TrendLens — ติดตามและวิเคราะห์หุ้นเทคสหรัฐฯ (ใช้งานส่วนตัวบน localhost)
 
-A personal dashboard for monitoring US technology stocks, exploring live charts, and evaluating transparent trading signals.
+โปรแกรมดูกราฟและราคาที่อัปเดตต่อเนื่อง ประเมินแนวโน้ม แสดงสัญญาณ “พิจารณาซื้อ / ออกจากสถานะ / รอ” พร้อมเหตุผล
+ทดสอบกลยุทธ์ย้อนหลัง และจำลองติดตามสถานะ — **ไม่มีการส่งคำสั่งซื้อขายจริง ไม่เชื่อมบัญชีเทรด ไม่ deploy ขึ้นอินเทอร์เน็ต**
 
-TrendLens is designed to run locally on Windows. It combines interactive charts, trend classification, a personal watchlist, notes, and historical strategy testing in one private workspace.
+> ผลทั้งหมดเป็นกติกาที่อธิบายได้และผลจำลอง ไม่ใช่คำแนะนำการลงทุน และไม่รับประกันผลในอนาคต
 
-## Project Status
+เอกสารภาพรวมโครงการฉบับวางแผน (ภาษาอังกฤษ): [docs/PROJECT_OVERVIEW.en.md](docs/PROJECT_OVERVIEW.en.md)
 
-TrendLens is currently in the planning stage. This README describes the intended architecture and MVP requirements; it does not imply that the application, scripts, or integrations have been implemented.
+---
 
-## Goals
+## สารบัญ
 
-- Monitor technology stocks with continuously updated market data.
-- Explain upward, downward, sideways, and uncertain market trends.
-- Display rule-based entry and exit signals with supporting values and reasons.
-- Evaluate strategies through backtesting and simulated positions.
-- Keep personal records and application data on the user's computer.
+1. [สถาปัตยกรรม](#สถาปัตยกรรม)
+2. [สมมติฐานที่เลือกเอง](#สมมติฐานที่เลือกเอง)
+3. [ติดตั้งบน Windows (PowerShell)](#ติดตั้งบน-windows-powershell)
+4. [เปิด Demo Mode](#เปิด-demo-mode)
+5. [ตั้งค่า provider (Alpaca)](#ตั้งค่า-provider-alpaca)
+6. [รันโปรแกรมบน 127.0.0.1](#รันโปรแกรมบน-127001)
+7. [รัน tests](#รัน-tests)
+8. [การประเมินแนวโน้ม](#การประเมินแนวโน้ม)
+9. [กลยุทธ์เริ่มต้น](#กลยุทธ์เริ่มต้น)
+10. [Backtesting](#backtesting)
+11. [ข้อมูลสดและนโยบายข้อมูล](#ข้อมูลสดและนโยบายข้อมูล)
+12. [ข้อจำกัดของข้อมูล / feed](#ข้อจำกัดของข้อมูล--feed)
+13. [การตั้งค่าทั้งหมด](#การตั้งค่าทั้งหมด)
+14. [ความเป็นส่วนตัว](#ความเป็นส่วนตัว)
+15. [โครงสร้างโปรเจกต์](#โครงสร้างโปรเจกต์)
+16. [ผลการทดสอบและสิ่งที่ยังทดสอบไม่ได้](#ผลการทดสอบและสิ่งที่ยังทดสอบไม่ได้)
+17. [ข้อจำกัดที่ยังเหลือ](#ข้อจำกัดที่ยังเหลือ)
 
-TrendLens will not place real orders. The initial version will use explicit trading rules rather than machine learning.
+---
 
-## Planned Features
+## สถาปัตยกรรม
 
-### Charts and Watchlist
-
-- Editable watchlist, initially containing AAPL, MSFT, NVDA, AMD, GOOGL, AMZN, and META.
-- Interactive candlestick and volume charts.
-- One-minute, five-minute, and daily timeframes.
-- Optional MA20, MA50, MA200, and RSI14 indicators.
-- Entry and exit markers with explanations.
-- A dark interface with Thai UI text and English tickers and indicator names.
-
-### Live Data
-
-- Historical data retrieval through REST APIs.
-- Continuous market data ingestion through a dedicated WebSocket worker.
-- A configurable display update interval, initially two seconds.
-- Explicit labels for live, delayed, and demo data, including the provider and feed.
-- Connection status, market-session status, and the latest data timestamp.
-- Automatic reconnection and historical gap recovery.
-- Signal generation paused when required data is stale or incomplete.
-
-The display refresh interval does not determine data freshness. Feed entitlements, exchange coverage, provider latency, and market activity determine what data is available.
-
-### Personal Workspace
-
-- Persistent watchlists and per-symbol notes.
-- Signal history without duplicate events after refreshes or reconnects.
-- Local simulated positions, separate from signal events.
-- CSV import and a reproducible demo mode that requires no API credentials.
-
-### Backtesting
-
-- Shared strategy logic between live analysis and historical testing.
-- Configurable starting capital, position allocation, fees, and slippage.
-- Equity curve, total return, maximum drawdown, trade count, win rate, and profit factor.
-- Buy-and-hold comparison over the same period with consistent cost assumptions.
-- An inspectable trade ledger and separate reporting for open positions.
-- Separate development and out-of-sample evaluation periods.
-
-## Technology Stack
-
-| Component | Planned technology | Responsibility |
-| --- | --- | --- |
-| Language | TypeScript | Shared types and application logic |
-| Application | Next.js App Router and React | Pages, layouts, and HTTP endpoints |
-| Charts | TradingView Lightweight Charts | Candlesticks, volume, and chart updates |
-| Market data worker | Node.js | Provider connections, aggregation, and signal processing |
-| Local storage | SQLite | Prices, watchlists, notes, signals, and simulated positions |
-| Tests | Vitest and Playwright | Core logic and end-to-end workflows |
-
-Exact dependency versions will be selected and pinned during implementation. Chart integration must follow the library's license and attribution requirements.
-
-## Architecture
-
-```text
-Market Data Provider
-  | REST: history and gap recovery
-  | WebSocket: ongoing market events
-  v
-Node.js Market Data Worker
-  | Normalize and validate events
-  | Aggregate bars and calculate indicators
-  | Evaluate closed-bar signals
-  +------------------------> SQLite
-  |
-  | Local WebSocket updates
-  v
-Next.js Client Components
-  | Lightweight Charts
-  | Trend and signal panels
-  | Watchlist and connection status
-
-Next.js Server / Route Handlers
-  | Historical queries, notes, settings, and backtest jobs
-  +------------------------> SQLite
+```
+                    ┌──────────────────────────── เครื่องของคุณ ─────────────────────────────┐
+ Alpaca REST/WS ───►│  worker (Node.js, tsx)                    Next.js (127.0.0.1:3000)     │
+ (หรือ Demo)        │   provider → bounded queue → SQLite ◄────►  /api/*  ◄── เบราว์เซอร์     │
+                    │   backfill / reconnect / สัญญาณ        (WAL)  หน้าจอ poll ทุก ~2 วินาที │
+                    └────────────────────────────────────────────────────────────────────────┘
 ```
 
-Next.js includes React; it provides the application framework around the chart interface. Browser-dependent chart code belongs in Client Components and must initialize after mounting, with proper cleanup.
+- **worker** (`worker/index.ts`) — โปรเซสแยก รับ WebSocket ครั้งเดียว (ไม่ผูกกับการ refresh หน้าจอ), ใส่ข้อมูลเข้า queue ที่จำกัดขนาด,
+  บันทึกลง SQLite, เติมช่วงที่ขาดหลัง reconnect, ประเมินสัญญาณจาก **แท่งที่ปิดแล้วเท่านั้น** และเขียนสถานะ/heartbeat ให้ UI
+  worker **ไม่เปิด port ใด ๆ** — สื่อสารกับ Next.js ผ่าน SQLite
+- **Next.js App Router** — หน้าจอ + HTTP API อ่าน/เขียน SQLite, bind ที่ `127.0.0.1` เท่านั้น
+- **โค้ดกลาง** (`src/core`) — indicators, trend, strategy, engine จำลองสถานะ และ backtest เป็นชุดเดียวกัน
+  ใช้ทั้งใน worker (สด), API (แสดงผล) และหน้า Backtest — tests ยืนยันว่าสัญญาณสดตรงกับ backtest บนข้อมูลเดียวกัน
+- **คำสั่งเดียว** เปิดทั้งสองโปรเซสด้วย `concurrently`
+- กราฟใช้ [TradingView Lightweight Charts™](https://www.tradingview.com/lightweight-charts/) (Apache-2.0) และแสดงโลโก้ attribution ของไลบรารีตามเงื่อนไขการใช้งาน
 
-The market data worker runs as a separate long-lived process. Provider connections must not be created during page rendering or on every HTTP request. Both local services bind to `127.0.0.1`. A future startup script should launch the application and worker together.
+## สมมติฐานที่เลือกเอง
 
-CPU-heavy backtests should run outside the live ingestion event loop so that testing does not interrupt market data processing. Database access should use transactions and a defined writer policy, with SQLite WAL mode and bounded retry behavior evaluated during implementation.
+| เรื่อง | สิ่งที่เลือก | เหตุผล |
+|---|---|---|
+| ภาษา/stack | **TypeScript ทั้งโปรเจกต์** (Next.js + Node worker) ตามหัวข้อ “ใช้ TypeScript ทั้งโปรเจกต์” | คำสั่งบางส่วนกล่าวถึง Python/Streamlit ซึ่งขัดกับ stack ที่ระบุ จึงยึด stack ที่ระบุชัด; “Streamlit rerun” ตีความเป็น “การ refresh หน้าจอ” และ “virtual environment” เทียบได้กับ `node_modules` ภายในโปรเจกต์ (`npm ci`) |
+| SQLite driver | `better-sqlite3` (มี prebuilt binary สำหรับ Windows/Node 24 ไม่ต้องติดตั้ง Visual Studio) | เร็ว, synchronous, รองรับ WAL ให้ 2 โปรเซสอ่าน/เขียนพร้อมกัน |
+| WebSocket client | `WebSocket` ในตัวของ Node 22+ | ลด dependency |
+| Feed เริ่มต้น | Alpaca `iex` | ใช้ได้กับแผนฟรี; ป้ายกำกับชัดว่าครอบคลุมเฉพาะ IEX |
+| การปรับราคาย้อนหลัง | `split` | ข้อมูลสดเป็นราคาดิบ (ฐานหุ้นปัจจุบัน) จึงเข้ากันกับย้อนหลังที่ปรับ split; ไม่ปรับเงินปันผลเพื่อไม่ให้ราคาย้อนหลังต่ำกว่าราคาสดแบบไม่สม่ำเสมอ |
+| Session | `regular` (09:30–16:00 ET) | ใช้เหมือนกันทั้งกราฟ กลยุทธ์ และ backtest |
+| ATR | simple average ของ True Range | ค่าไม่ขึ้นกับจุดเริ่มของหน้าต่างข้อมูล → สดกับ backtest ได้ค่าเดียวกัน |
+| “ออกข้าง” normalized | หารด้วย ATR14 | ใช้ได้ทุก timeframe โดยไม่ต้องตั้งเกณฑ์ % แยก |
+| สัญญาณสดติดตาม | เฉพาะ 5 นาที (ปรับได้) | ตามค่าเริ่มต้นของกลยุทธ์ |
+| เงินจำลอง | $10,000, ใช้ 100% ต่อการเข้า, ค่าธรรมเนียม 0.1%/ขา, slippage 0.05%/ขา, หุ้นเศษส่วน | ค่าที่สมเหตุสมผลสำหรับนักลงทุนรายย่อย ปรับได้ |
+| Demo Mode | ข้อมูลสังเคราะห์จาก seed คงที่ + นาฬิกาจำลอง (เริ่ม 2026-10-01 10:00 ET, เร็ว 10 เท่า, ข้ามช่วงตลาดปิด) | ทำซ้ำได้ และดูการอัปเดตสดได้แม้ตลาดจริงปิด |
+| ปฏิทินตลาด | วันหยุด/วันปิดเร็ว NYSE แบบคงที่ถึงปี 2027 | ไม่ต้องเรียกบริการภายนอก |
+| Watchlist สูงสุด | 30 ตัว | ตามข้อจำกัด WebSocket ของ Alpaca แผนฟรี |
 
-## Market Data
+## ติดตั้งบน Windows (PowerShell)
 
-Alpaca Market Data is the initial planned provider. A provider interface should allow another service to be added without changing chart or strategy logic.
-
-### Feed Coverage
-
-- IEX represents activity on a single exchange.
-- SIP provides consolidated coverage across US exchanges; access and latency depend on the subscription and entitlements.
-- The application must verify the selected feed's current capabilities and label its coverage and delay accurately.
-- Missing credentials must lead to clearly labeled demo mode, not silently substituted live-looking data.
-
-### Data Handling
-
-- Store timestamps in UTC; support display in `Asia/Bangkok` and `America/New_York`.
-- Use an exchange calendar to account for holidays, daylight saving changes, and early closes.
-- Default to regular trading hours; apply the selected session policy consistently across charts, signals, and backtests.
-- Handle duplicate, out-of-order, late, and corrected events using documented policies.
-- Distinguish forming bars from closed bars.
-- Require complete input bars before creating confirmed signals.
-- Define stock-split and dividend adjustment policies and apply them consistently. Chart and backtest results must identify the adjustment method used.
-- Historical corrections may update analytical data, but previously issued signals must retain an audit trail rather than silently changing history.
-
-### CSV Import
-
-Required columns:
-
-```csv
-Date,Open,High,Low,Close,Volume
-2026-01-05,100.00,103.00,99.00,102.00,1500000
-```
-
-The example is synthetic. Imports must validate timestamps, OHLC consistency, numeric values, and duplicate rows. Intraday imports must declare a timezone or include offsets.
-
-## Trend Classification
-
-Trend classification is calculated independently for each timeframe. MA50 means 50 bars of the selected timeframe, not necessarily 50 days.
-
-The initial classifier should evaluate these conditions in order:
-
-1. **Insufficient data:** there are not enough closed bars for the required calculations.
-2. **Sideways:** both normalized MA50 slope and normalized distance from MA50 are within configured thresholds.
-3. **Uptrend:** the closing price is above MA50, and MA50 is higher than it was ten bars earlier.
-4. **Downtrend:** the closing price is below MA50, and MA50 is lower than it was ten bars earlier.
-5. **Uncertain:** none of the preceding conditions apply.
-
-Normalized slope is `MA50[t] / MA50[t - 10] - 1`. Normalized distance is `Close[t] / MA50[t] - 1`. Sideways thresholds must be explicit, configurable, and recorded with each strategy configuration. Initial threshold values remain an implementation decision to validate during research.
-
-## Initial Trading Strategy
-
-The MVP strategy is long-only and uses five-minute bars by default.
-
-| Action | Conditions |
-| --- | --- |
-| Consider entry | No open position, an uptrend, and the close is strictly above the highest high of the preceding 20 bars |
-| Exit long position | An open position and the close is strictly below the lowest low of the preceding 10 bars |
-| Wait | Neither condition applies |
-
-The rolling high and low exclude the current bar. Confirmed decisions use closed bars only. Any condition displayed during a forming bar must be labeled **Awaiting confirmation**.
-
-RSI is contextual information in the MVP and does not affect these rules. Exiting a position does not open a short position.
-
-Each signal must record its symbol, timeframe, bar timestamp, strategy version, parameters, relevant indicator values, and explanation. Arbitrary indicator scores must not be presented as probabilities of profit.
-
-## Backtest Assumptions
-
-- A signal generated at a bar's close can execute no earlier than the next available bar's open.
-- Buys and sells apply configurable fees and adverse slippage.
-- Position sizing must account for costs and available cash.
-- No leverage, negative cash balances, short positions, or overlapping positions in the same symbol.
-- Fractional shares are the initial simulation assumption and must be disclosed.
-- Final-bar signals without an executable next bar remain unfilled.
-- Open positions at the end are marked to market and reported separately from closed trades.
-- Undefined metrics, including profit factor with no losing trades, must be labeled appropriately.
-- Insufficient data must produce an actionable message instead of misleading results.
-
-The implementation must prevent look-ahead bias and preserve chronological evaluation. Initial backtests are per-symbol; results must not be combined into a shared-capital portfolio without an explicit portfolio model. Tests on a handpicked watchlist do not establish performance across the broader market.
-
-## Suggested Repository Structure
-
-```text
-trendlens/
-  apps/
-    web/                 # Next.js application
-    market-worker/       # Ingestion and local streaming service
-  packages/
-    core/                # Indicators, trend rules, strategy, backtesting
-    data/                # Providers, CSV import, demo data, aggregation
-    storage/             # SQLite schema, migrations, repositories
-    shared/              # Configuration schemas and shared types
-  tests/
-    integration/
-    e2e/
-  data/                  # Ignored local database files
-  .env.example
-  .gitignore
-  package.json
-  README.md
-```
-
-## Local Setup Plan
-
-Prerequisites will include a supported Node.js LTS release and npm. A live feed additionally requires provider credentials and appropriate data access.
-
-The following commands describe the intended script contract. They are **not available yet**, because application scaffolding has not been created.
+ต้องมี **Node.js 22.12 ขึ้นไป** (ทดสอบบน Node 24.19 / npm 11.17, Windows 11)
 
 ```powershell
+# ตรวจเวอร์ชัน
+node --version
+npm --version
+
+# เข้าโฟลเดอร์โปรเจกต์
+cd D:\Code\projects\TrandLens
+
+# "virtual environment" ของ Node = node_modules ภายในโปรเจกต์ ติดตั้งตาม package-lock.json แบบล็อกเวอร์ชัน
 npm ci
+
+# (ไม่บังคับ) สร้างไฟล์ตั้งค่า
 Copy-Item .env.example .env
-npm run db:migrate
-npm run dev
+Copy-Item trendlens.config.example.json trendlens.config.json
 ```
 
-The intended local address is `http://127.0.0.1:3000`. The startup command should launch both services and stop both cleanly on exit.
+> `package.json` ตั้ง `allowScripts` ให้ **ไม่** รัน `node-gyp rebuild` ของ better-sqlite3 (ใช้ prebuilt binary ที่มากับแพ็กเกจ)
+> ถ้ารันสคริปต์นี้บนเครื่องที่ไม่มี Visual Studio Build Tools จะติดตั้งไม่ผ่าน
 
-Proposed environment variables:
+## เปิด Demo Mode
 
-```dotenv
-DATA_MODE=demo
-ALPACA_API_KEY=
-ALPACA_API_SECRET=
-ALPACA_DATA_FEED=iex
-DATABASE_PATH=./data/trendlens.sqlite
-DISPLAY_TIMEZONE=Asia/Bangkok
-UI_UPDATE_INTERVAL_MS=2000
-```
-
-Environment-file loading must be configured explicitly for both the web application and worker. Database paths must resolve consistently from the repository root. Live mode must validate credentials and feed access before starting analysis.
-
-## Privacy and Local Operation
-
-- Keep API credentials in server and worker environments. Never prefix secrets with `NEXT_PUBLIC_`.
-- Exclude `.env`, local database files and sidecars, logs, and personal exports from Git.
-- Do not expose public tunnels or deploy automatically.
-- External network access is required for market data; demo mode should work without it.
-- Validate local HTTP and WebSocket origins to prevent unrelated websites from accessing local services.
-- Redact secrets from logs and error messages.
-
-## Verification Plan
-
-Unit tests should cover indicator warm-up, trend classification, breakout windows, closed-bar confirmation, duplicate signal prevention, next-bar execution, costs, cash constraints, aggregation boundaries, and malformed market events.
-
-Integration tests should cover persistence, provider reconnection, gap recovery, and isolation between live processing and backtests.
-
-The primary end-to-end flow is:
-
-1. Start in demo mode without credentials.
-2. Select a symbol and timeframe.
-3. Inspect chart updates and signal explanations.
-4. Save a note and confirm it persists after restarting.
-5. Run a backtest and inspect its trades and equity curve.
-
-Planned verification commands:
+ไม่ต้องมี API key:
 
 ```powershell
-npm run lint
-npm run typecheck
-npm test
-npm run test:e2e
-npm run build
+npm run demo
 ```
 
-Live-feed verification must be reported separately from demo and mocked tests. No live integration should be described as verified without valid credentials and an actual connection test.
+แล้วเปิดเบราว์เซอร์ที่ <http://127.0.0.1:3000> — ทุกหน้าจะมีป้าย **DEMO** สีเหลือง และเวลาเป็น “เวลาจำลอง”
+หยุดโปรแกรมด้วย `Ctrl+C` ในหน้าต่าง PowerShell เดียวกัน
 
-## Roadmap
+- ถ้าไม่มี `ALPACA_API_KEY_ID`/`ALPACA_API_SECRET_KEY` คำสั่ง `npm run dev` ก็จะเข้า Demo Mode อัตโนมัติพร้อมแจ้งเหตุผล
+- ทดสอบการหลุด/เชื่อมต่อใหม่: `$env:DEMO_DROP_EVERY_SEC=60; npm run demo` (หลุด 15 วินาทีทุก 60 วินาที แล้ว backfill)
+- เริ่ม Demo ใหม่ทั้งหมด: หยุดโปรแกรมแล้วลบ `data\trendlens.db*` (จะลบบันทึกส่วนตัวด้วย)
 
-- [ ] Scaffold the TypeScript workspace and local startup scripts.
-- [ ] Deliver an end-to-end demo dashboard.
-- [ ] Add SQLite persistence, CSV import, watchlists, and notes.
-- [ ] Implement and test shared indicator, trend, and strategy logic.
-- [ ] Add historical backtesting and simulated positions.
-- [ ] Integrate the live provider and resilient streaming worker.
-- [ ] Verify reconnection, data freshness, and session handling.
-- [ ] Complete Windows setup documentation and end-to-end checks.
+**Flow ที่ตรวจแล้ว:** เปิด Demo → เลือกหุ้นจาก Watchlist → ดูกราฟ → อ่านเหตุผลสัญญาณในกล่อง “สัญญาณและเหตุผล” →
+พิมพ์บันทึก (Ctrl+Enter) → ปิดแล้วเปิดโปรแกรมใหม่ บันทึกยังอยู่ → หน้า “ทดสอบย้อนหลัง” → รัน Backtest
 
-## Limitations
+## ตั้งค่า provider (Alpaca)
 
-TrendLens provides analytical signals based on chosen rules, not guaranteed forecasts or personalized investment recommendations. Real-time data does not inherently improve prediction accuracy. Historical simulations depend on data quality and execution assumptions and do not guarantee future returns.
+1. สมัคร/เข้าสู่ระบบ Alpaca แล้วสร้าง API key (Paper หรือ Live ใช้ Market Data ได้เหมือนกัน — โปรแกรมนี้ใช้เฉพาะ Market Data)
+2. แก้ไฟล์ `.env` (สร้างจาก `.env.example`):
 
-## References
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
 
-- [Next.js documentation](https://nextjs.org/docs)
-- [Lightweight Charts documentation](https://tradingview.github.io/lightweight-charts/)
-- [Alpaca Market Data documentation](https://docs.alpaca.markets/us/docs/about-market-data-api)
-- [SQLite documentation](https://www.sqlite.org/docs.html)
+```ini
+DATA_PROVIDER=alpaca
+ALPACA_API_KEY_ID=ใส่_key_id
+ALPACA_API_SECRET_KEY=ใส่_secret
+ALPACA_FEED=iex          # แผนฟรี; ใช้ sip เมื่อมี Algo Trader Plus; delayed_sip = ล่าช้า 15 นาที
+ALPACA_ADJUSTMENT=split
+```
+
+3. รัน `npm run dev` แล้วดูแผง “สถานะ Provider” ทางซ้าย:
+   - `LIVE · IEX` = real-time แต่เฉพาะ IEX, `LIVE · SIP` = ทุกตลาด, `DELAYED 15m` = ล่าช้า
+   - ถ้า key ผิด/ไม่มีสิทธิ์ feed จะเห็นสถานะ “ผิดพลาด” พร้อมข้อความ และ worker จะไม่ลองเชื่อมต่อซ้ำจนกว่าจะแก้ `.env` แล้วเริ่มใหม่
+
+> secret ถูกอ่านเฉพาะใน worker/server เท่านั้น (ไม่มีตัวแปร `NEXT_PUBLIC_`) ไม่ถูกส่งไปหน้าเว็บ ไม่ถูกเขียนลง log และ `.env` อยู่ใน `.gitignore`
+
+ข้อมูลของแต่ละ provider/feed/วิธีปรับราคาเก็บในชุดข้อมูลแยกกัน (เช่น `demo`, `alpaca-iex-split`) จึงไม่ผสมกัน
+
+## รันโปรแกรมบน 127.0.0.1
+
+```powershell
+# โหมดพัฒนา (hot reload) — Next.js + worker
+npm run dev
+
+# โหมด production
+npm run build
+npm start
+```
+
+ทุกคำสั่ง bind Next.js ที่ `127.0.0.1:3000` (`-H 127.0.0.1`) ซึ่งเข้าถึงได้จากเครื่องนี้เท่านั้น — worker ไม่เปิด port
+ตรวจสอบได้ด้วย `netstat -ano | Select-String ":3000"` ควรเห็น `127.0.0.1:3000 ... LISTENING` (ไม่ใช่ `0.0.0.0`)
+
+ถ้าต้องการรัน worker แยก: `npm run worker` (หรือ `npx tsx worker/index.ts --demo`)
+
+## รัน tests
+
+```powershell
+npm test            # vitest — ไม่ต้องมี API key และไม่ต่อเครือข่าย
+npm run typecheck   # tsc --noEmit
+```
+
+## การประเมินแนวโน้ม
+
+ฟังก์ชัน `classifyTrendAt()` ใน `src/core/trend.ts` แยกจาก UI ใช้เฉพาะแท่ง 0..i และพารามิเตอร์จาก config
+**MA50 หมายถึง 50 แท่งของ timeframe นั้น** (เช่น 5 นาที = 250 นาที, รายวัน = 50 วันทำการ) หน้าจอแสดงแนวโน้มแยก 1 นาที / 5 นาที / รายวัน
+
+ลำดับการตรวจ (เงื่อนไขแรกที่เป็นจริงคือผลลัพธ์):
+
+| ลำดับ | ผลลัพธ์ | เงื่อนไข (ค่าเริ่มต้น) |
+|---|---|---|
+| 1 | ข้อมูลไม่เพียงพอ | ไม่มี MA50, MA50 เมื่อ 10 แท่งก่อน หรือ ATR14 (ต้องมีอย่างน้อย 60 แท่ง) |
+| 2 | ออกข้าง | \|MA50 − MA50[10 แท่งก่อน]\| / ATR14 **< 0.5** และ \|Close − MA50\| / ATR14 **≤ 1.0** |
+| 3 | ขาขึ้น | Close > MA50 และ MA50 > MA50[10 แท่งก่อน] |
+| 4 | ขาลง | Close < MA50 และ MA50 < MA50[10 แท่งก่อน] |
+| 5 | ยังไม่ชัดเจน | นอกเหนือจากนี้ (เงื่อนไขขัดแย้งกัน) |
+
+“ออกข้าง” ตรวจก่อน “ขาขึ้น/ขาลง” เพราะ MA ที่ชันน้อยมากเทียบกับความผันผวนไม่ควรนับเป็นแนวโน้ม
+ATR14 = ค่าเฉลี่ยอย่างง่ายของ True Range 14 แท่ง ปรับค่าได้ใน `trendlens.config.json` → `strategy.trend`
+
+## กลยุทธ์เริ่มต้น
+
+Long-only, timeframe 5 นาที (`src/core/strategy.ts`, `src/core/engine.ts`)
+
+- **สัญญาณเข้า (พิจารณาซื้อ):** ไม่มีสถานะ + แนวโน้มขาขึ้น + Close **>** High สูงสุดของ 20 แท่งก่อนหน้า
+- **สัญญาณออก (ออกจากสถานะ):** มีสถานะ + Close **<** Low ต่ำสุดของ 10 แท่งก่อนหน้า — หมายถึงปิด long ไม่ใช่เปิด short
+- **นอกนั้น:** รอ
+- High/Low ย้อนหลัง **ไม่รวมแท่งปัจจุบัน**
+- สัญญาณยืนยันใช้ **เฉพาะแท่งที่ปิดแล้ว** (เวลาสิ้นสุดแท่ง + 15 วินาที grace) — ระหว่างแท่งหน้าจอแสดงป้าย **“รอยืนยัน”** และไม่บันทึก
+- จำลอง execution ที่ **ราคาเปิดของแท่งถัดไป** (+slippage, +ค่าธรรมเนียม)
+- **เหตุการณ์สัญญาณ** (`signal_events`) แยกจาก **สถานะจำลอง** (`sim_positions`) — สัญญาณบันทึกแบบ unique ต่อ (ชุดข้อมูล, หุ้น, TF, กลยุทธ์, เวลาแท่ง, ชนิด) จึงไม่ซ้ำเมื่อ refresh/restart
+- ทุกสัญญาณเก็บเหตุผลและค่าตัวแปร (Close, High/Low อ้างอิง, MA, ATR, ความชัน, ระยะห่าง, RSI)
+- RSI14 แสดงเป็นข้อมูลประกอบเท่านั้น ไม่อยู่ในเงื่อนไข และไม่มีการแสดง “% โอกาสกำไร/ความมั่นใจ”
+- ครั้งแรกที่ worker เห็นหุ้น/TF/ชุดพารามิเตอร์ใหม่ จะไล่สัญญาณจากข้อมูลย้อนหลังที่มี (ที่มา = `backfill`) แล้วติดตามต่อ (`live`; ถ้าตามเก็บหลายแท่งหลังข้อมูลขาด = `catchup`)
+- เปลี่ยนพารามิเตอร์ → strategy key ใหม่ → ประวัติสัญญาณ/สถานะจำลองชุดใหม่ (ไม่ปนกับของเดิม)
+
+## Backtesting
+
+หน้า “ทดสอบย้อนหลัง” ใช้ `prepare/evaluateAt/step` ชุดเดียวกับระบบสด
+
+- ไม่มี look-ahead: indicator ที่แท่ง i ใช้แท่ง 0..i; ตัดแท่งหลังวันสิ้นสุดก่อนคำนวณ; ไม่ใช้แท่งที่ยังไม่ปิด
+- แท่งก่อนวันเริ่มใช้เป็น warm-up ของ indicator เท่านั้น
+- เงินสดไม่ติดลบ, ไม่มี leverage (สัดส่วนเงินถูกจำกัดที่ 100%), ไม่เปิดสถานะซ้อน, เงินไม่พอ → ข้ามและบันทึกเหตุผล
+- **หุ้นเศษส่วน (ค่าเริ่มต้น):** ปัดจำนวนลงที่ 6 ตำแหน่ง สมมติว่าโบรกเกอร์รองรับ fractional และ fill ได้ทั้งหมดที่ราคาเปิด+slippage; ปิดตัวเลือกนี้เพื่อใช้จำนวนเต็ม
+- ค่าธรรมเนียม = % ของมูลค่า + ค่าคงที่ ต่อขา (ค่าธรรมเนียมขายไม่เกินมูลค่าที่ขายได้)
+- Metrics: equity curve (mark-to-market ที่ราคาปิด), total return, max drawdown, จำนวนเทรด, win rate (กำไร > 0 นับเป็นชนะ), profit factor
+- **Buy-and-hold** ช่วงเดียวกัน ซื้อที่ราคาเปิดแท่งแรกของช่วง ด้วยสัดส่วนเงิน ค่าธรรมเนียม และ slippage เดียวกัน
+- กรณีพิเศษ: ไม่มีเทรด (แจ้งชัด, win rate/profit factor = “-”), ไม่มีเทรดขาดทุน (profit factor คำนวณไม่ได้ พร้อมหมายเหตุ),
+  สถานะยังเปิดตอนจบ (แสดง mark-to-market แยก + ประมาณการต้นทุนขาย ซึ่งยังไม่หักใน total return), สัญญาณที่แท่งสุดท้าย (แจ้งว่ายัง execute ไม่ได้)
+- **In-sample / Out-of-sample:** ใส่วันเริ่มช่วง OOS → แยกผลสองช่วง แต่ละช่วงเริ่มเงินใหม่ ไม่ถือสถานะข้ามช่วง (OOS ใช้แท่งก่อนหน้าเป็น warm-up ได้)
+- **การปรับราคา:** แสดงวิธีปรับราคาของชุดข้อมูลทุกครั้ง — Alpaca ตาม `ALPACA_ADJUSTMENT` (ค่าเริ่มต้น split เท่านั้น ⇒ ผลตอบแทนไม่รวมเงินปันผล),
+  Demo = ไม่มี corporate action, CSV = “ไม่ทราบ (ตามไฟล์ต้นทาง)” — ชุดข้อมูลแต่ละแบบเก็บแยก ไม่ผสมกัน
+- รายการซื้อขายและบันทึกการ execute ตรวจสอบย้อนได้ทุกรายการ (เวลาสัญญาณ, เวลา execute, ราคาเปิด, ราคาหลัง slippage, ค่าธรรมเนียม, เงินสดคงเหลือ)
+
+### นำเข้า CSV
+
+หน้า “ข้อมูล / CSV” — คอลัมน์ `Date, Open, High, Low, Close, Volume` (ลำดับใดก็ได้)
+`YYYY-MM-DD` = รายวัน, มีเวลา = 1 นาที (ไม่มี offset ⇒ ถือเป็นเวลานิวยอร์ก) แถวซ้ำใช้แถวหลัง แถวผิดรูปแบบถูกข้ามและรายงาน
+ข้อมูล CSV เก็บในชุดข้อมูล `csv` ใช้ได้ในหน้า Backtest
+
+## ข้อมูลสดและนโยบายข้อมูล
+
+| หัวข้อ | การทำงาน |
+|---|---|
+| Connection | worker สร้าง WebSocket ครั้งเดียว; หน้าจอ refresh ไม่สร้าง connection ใหม่ |
+| Queue | `BoundedQueue` ขนาด `STREAM_QUEUE_CAPACITY` (20,000) — เต็มแล้วทิ้งรายการเก่าสุด, นับจำนวน และสั่ง backfill ชดเชย |
+| อัปเดตหน้าจอ | poll ทุก `UI_REFRESH_MS` (2,000 ms) ดึงเฉพาะแท่งใหม่ (`since=`) |
+| Reconnect | exponential backoff 1s, 2s, 4s … สูงสุด 60s ±20% jitter; error 402/409 (key/สิทธิ์) หยุดลองและแจ้ง |
+| Backfill | จำจุดสุดท้ายก่อนหลุด → หลังเชื่อมต่อใหม่ดึง REST ตั้งแต่จุดนั้น (ทับซ้อน 5 นาที) ก่อนประเมินสัญญาณต่อ |
+| ข้อมูลซ้ำ | เวลาเดียวกัน ค่าเดิม → ข้าม (นับ “ซ้ำ”) |
+| ข้อมูลแก้ไขย้อนหลัง | เวลาเดียวกัน ค่าต่าง (`updatedBars`, backfill) → ค่าใหม่แทนที่ (นับ “แก้ไข”) — สัญญาณที่ยืนยันไปแล้ว **ไม่ถูกแก้/ลบ** (เก็บค่าที่ใช้ตัดสินใจไว้ในเหตุการณ์) |
+| ข้อมูลมาผิดลำดับ | แทรกตามเวลา (นับ “มาช้า”) แต่ไม่ย้อนสร้างสัญญาณของแท่งที่ประเมินไปแล้ว |
+| ข้อมูลผิดรูปแบบ | NaN, ราคา ≤ 0, High < Low → ทิ้ง |
+| เวลา | เก็บเป็น UTC (epoch ms) แสดงผลเลือก Asia/Bangkok หรือ America/New_York ได้ที่มุมขวาบน; แท่งรายวันแสดงวันที่ของตลาด |
+| ตลาดปิด vs ข้อมูลค้าง | ตลาดปิด (ตามปฏิทิน NYSE) = “ตลาดปิด (ไม่ใช่ข้อมูลค้าง)”; ตลาดเปิดแต่ไม่มีข้อมูลเกิน `STALE_AFTER_SEC` = “ข้อมูลค้าง” |
+| พักสัญญาณ | เมื่อ หลุด / ค้าง / กำลัง backfill / provider error — หน้าจอแสดงเหตุผล; worker ไม่มี heartbeat > 10 วินาที ⇒ ป้าย `WORKER OFFLINE` |
+| Session | `MARKET_SESSION` ใช้กับการกรองแท่งนาทีทั้งกราฟ กลยุทธ์ และ backtest |
+
+## ข้อจำกัดของข้อมูล / feed
+
+ตรวจสอบกับเอกสาร Alpaca (docs.alpaca.markets) ณ ต.ค. 2026:
+
+- **Basic (ฟรี):** real-time เฉพาะ **IEX exchange** (ส่วนน้อยของปริมาณซื้อขายทั้งตลาด ⇒ ราคา/volume อาจต่างจากตลาดรวม และบางนาทีไม่มีแท่ง),
+  WebSocket ได้ 30 symbols, REST 200 ครั้ง/นาที, ข้อมูลย้อนหลัง SIP ล่าสุด 15 นาทีขอไม่ได้
+- **Algo Trader Plus:** SIP ทุกตลาด real-time
+- `delayed_sip` = SIP ล่าช้า 15 นาที — โปรแกรมแสดงเป็น **DELAYED** ไม่เรียกว่า real-time
+- แท่งนาทีของ Alpaca รวม pre/after-hours — โปรแกรมกรองตาม session ที่ตั้งไว้
+- แท่งรายวันย้อนหลังและ `dailyBars` มาจาก provider ตามนิยามของ Alpaca (อาจรวมการซื้อขายนอกเวลาปกติ) — ไม่ได้สร้างใหม่จากแท่งนาที
+- ข้อมูลสด (WebSocket) เป็นราคาดิบเสมอ; ย้อนหลังปรับตาม `ALPACA_ADJUSTMENT` — ถ้าเกิด split ระหว่างที่โปรแกรมเปิดอยู่ ให้ลบชุดข้อมูลแล้ว backfill ใหม่
+- Demo: ข้อมูลสังเคราะห์ ไม่ใช่ราคาจริง มีเฉพาะ regular session
+
+## การตั้งค่าทั้งหมด
+
+- **ตัวแปรสภาพแวดล้อม** — ดูคำอธิบายทุกตัวใน [`.env.example`](.env.example)
+- **กติกา/เงินจำลอง** — `trendlens.config.json` (คัดลอกจาก [`trendlens.config.example.json`](trendlens.config.example.json)):
+  `session`, `strategyTimeframes` (เช่น `["5Min","1Day"]`), `strategy` (lookback, MA, ATR, เกณฑ์ออกข้าง), `portfolio` (เงินตั้งต้น, สัดส่วน, ค่าธรรมเนียม, slippage, fractional)
+- แก้แล้วต้องเริ่มโปรแกรมใหม่ (worker อ่านค่าตอนเริ่ม) — หน้า Backtest ปรับพารามิเตอร์ต่อการรันได้โดยไม่กระทบระบบสด
+
+## ความเป็นส่วนตัว
+
+- Next.js bind ที่ `127.0.0.1` เท่านั้น, worker ไม่เปิด port, ไม่มี deploy/tunnel/telemetry ของโปรแกรม
+- Next.js ปิด `poweredByHeader`; ไม่โหลดฟอนต์/สคริปต์จากภายนอก (ใช้ฟอนต์ของระบบ)
+- ข้อมูลทั้งหมด (ราคา, สัญญาณ, สถานะจำลอง, บันทึก, watchlist) อยู่ใน `data/trendlens.db` ภายในโปรเจกต์
+- `.env`, `data/`, `*.db*`, log และ `trendlens.config.json` อยู่ใน `.gitignore`
+- การเชื่อมต่อเครือข่ายของ worker มีเฉพาะ `data.alpaca.markets` และ `stream.data.alpaca.markets` (เมื่อใช้ Alpaca)
+- หมายเหตุ: Next.js อาจส่ง telemetry แบบไม่ระบุตัวตนของตัวเฟรมเวิร์ก ปิดได้ด้วย `npx next telemetry disable`
+
+## โครงสร้างโปรเจกต์
+
+```
+app/                     Next.js App Router (UI)
+  page.tsx               แดชบอร์ด: Watchlist, กราฟ, แนวโน้ม, สัญญาณ, บันทึก
+  backtest/ positions/ data/   หน้า Backtest, สถานะจำลอง, นำเข้า CSV
+  api/                   HTTP API: status, chart, signals, notes, watchlist, positions, backtest, import-csv, datasets
+src/core/                logic กลาง (ไม่มี I/O ใช้ได้ทั้ง client/server/tests)
+  config.ts              ค่าเริ่มต้นและการ merge config
+  indicators.ts          SMA, RSI (Wilder), ATR, highest/lowest ก่อนหน้า
+  trend.ts               จัดประเภทแนวโน้ม
+  strategy.ts            กติกาเข้า/ออก/รอ + preview “รอยืนยัน”
+  engine.ts              จำลองคำสั่ง/สถานะ (execution แท่งถัดไป, ค่าธรรมเนียม, slippage)
+  backtest.ts            backtest, metrics, buy-and-hold, IS/OOS
+  aggregation.ts         รวมแท่ง, session, นโยบายซ้ำ/ผิดลำดับ/แก้ไข, การปิดแท่ง
+  market.ts time.ts csv.ts hash.ts
+src/server/              ฝั่ง server/worker เท่านั้น
+  env.ts                 อ่าน environment/config (secret)
+  db.ts                  SQLite schema + repository
+  data.ts                โหลดแท่งตาม timeframe/session
+  stream.ts              bounded queue + exponential backoff
+  providers/             Data Provider interface, Alpaca (REST+WS), Demo
+  live/runner.ts         ลูปของ worker (stream → queue → DB → สัญญาณ)
+  live/tracker.ts        ติดตามสัญญาณ/สถานะจำลองแบบ incremental (ไม่ซ้ำ)
+src/components/          React components (กราฟ Lightweight Charts, แผงต่าง ๆ)
+worker/index.ts          จุดเริ่มของ worker
+tests/                   vitest
+```
+
+## ผลการทดสอบและสิ่งที่ยังทดสอบไม่ได้
+
+ทดสอบจริงบน Windows 11, Node 24.19.0 (29 ต.ค. 2026):
+
+| รายการ | ผล |
+|---|---|
+| `npm ci` จาก lockfile บนเครื่องสะอาด (ไม่มี Visual Studio) | ผ่าน |
+| `npm test` — 75 tests / 7 ไฟล์ | ผ่านทั้งหมด |
+| `npm run typecheck` | ผ่าน |
+| `npm run build` | ผ่าน ไม่มี warning |
+| `npm audit` | 0 vulnerabilities (Next.js 16.4.3) |
+| `npm run demo` → Next.js listen ที่ `127.0.0.1:3000` เท่านั้น | ตรวจด้วย netstat แล้ว |
+| Flow Demo ในเบราว์เซอร์: เลือกหุ้น → กราฟ/MA/RSI/เครื่องหมาย → เหตุผลสัญญาณ → บันทึก note → restart → note ยังอยู่ → รัน Backtest (+OOS) | ผ่าน ไม่มี console error |
+| สัญญาณที่ worker บันทึก (AAPL 5 นาที) เทียบกับ backtest บนข้อมูลเดียวกัน | ตรงกัน 40/40 |
+| นาฬิกา Demo เดินต่อหลัง restart | ผ่าน |
+| นำเข้า CSV + backtest ชุดข้อมูล CSV | ผ่าน |
+
+Tests ครอบคลุม: indicator และ warm-up, การจัดประเภทแนวโน้ม (รวมลำดับการตรวจ), breakout ที่ไม่รวมแท่งปัจจุบัน, สัญญาณจากแท่งปิดเท่านั้น/preview รอยืนยัน,
+การป้องกันสัญญาณซ้ำ (รวมกรณี state หาย), execution ที่แท่งถัดไป, ค่าธรรมเนียม/slippage/เงินสดไม่ติดลบ/ไม่ใช้ leverage/หุ้นจำนวนเต็ม,
+no look-ahead, IS/OOS, การรวมแท่งและขอบเวลา (DST, วันหยุด, วันปิดเร็ว), ข้อมูลซ้ำ/ผิดลำดับ/แก้ไข/ผิดรูปแบบ/ช่วงขาด,
+bounded queue, backoff, Demo determinism, worker + Demo แบบเร่งเวลา (รวมหลุด → พักสัญญาณ → reconnect → backfill เติมช่วงครบ),
+protocol ของ Alpaca ด้วย WebSocket/fetch ปลอม (auth, subscribe, b/u/d/t, reconnect, error 402, แบ่งหน้า REST, ไม่ขอ 15 นาทีล่าสุดของ delayed)
+
+**ยังทดสอบไม่ได้เพราะไม่มี credential:**
+
+- การเชื่อมต่อ Alpaca จริง (auth, ข้อมูลสดจริง, REST ย้อนหลังจริง, ข้อจำกัด rate limit/connection limit จริง)
+- รูปแบบ timestamp แท่งรายวันจริงของ Alpaca (โค้ดรองรับเที่ยงคืน ET และทดสอบด้วยข้อมูลตัวอย่าง)
+- พฤติกรรมช่วงตลาดจริง (pre/after-hours, วันปิดเร็ว) กับ feed จริง
+- **ไม่อ้างว่า live feed ทำงานแล้ว** จนกว่าจะทดสอบด้วย key จริง — ขั้นตอนแนะนำ: ใส่ key ใน `.env`, `npm run dev`, ดูแผงสถานะว่า “เชื่อมต่อแล้ว” และหน้า “ข้อมูล / CSV” มีชุด `alpaca-iex-split`
+
+## ข้อจำกัดที่ยังเหลือ
+
+- ปฏิทินวันหยุด NYSE เป็นรายการคงที่ถึงปี 2027 (ต้องเพิ่มเองหลังจากนั้น) และไม่รองรับการปิดตลาดฉุกเฉิน
+- แนวโน้ม/สัญญาณคำนวณซ้ำทุก poll ของหน้าจอ (เร็วพอสำหรับ watchlist ขนาดเล็ก ไม่ได้ออกแบบสำหรับหลายร้อยตัว)
+- ข้อมูลย้อนหลัง 1 นาทีเก็บ 30 วันเป็นค่าเริ่มต้น — backtest 1/5 นาทีจึงสั้น (เพิ่ม `INTRADAY_HISTORY_DAYS` ได้ แต่ IEX มีข้อมูลบางช่วง)
+- ไม่ปรับราคาข้อมูลที่เก็บไว้แล้วอัตโนมัติเมื่อเกิด split ใหม่
+- การหยุดด้วย `Ctrl+C` ปิดทั้งสองโปรเซส; ถ้าปิดหน้าต่าง terminal แบบอื่นบน Windows อาจเหลือ process ค้าง (ปิดใน Task Manager หรือ `Get-Process node`)
+- สถานะจำลองสดใช้เงินตั้งต้นต่อหุ้น/TF แยกกัน ไม่ใช่พอร์ตรวม

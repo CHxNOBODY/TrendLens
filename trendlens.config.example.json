@@ -1,0 +1,23 @@
+{
+  "session": "regular",
+  "strategyTimeframes": ["5Min"],
+  "strategy": {
+    "breakoutLookback": 20,
+    "exitLookback": 10,
+    "trend": {
+      "maPeriod": 50,
+      "slopeLookback": 10,
+      "atrPeriod": 14,
+      "sidewaysMaxSlopeAtr": 0.5,
+      "sidewaysMaxDistanceAtr": 1.0
+    }
+  },
+  "portfolio": {
+    "initialCash": 10000,
+    "allocationPct": 100,
+    "feePct": 0.1,
+    "feeFixed": 0,
+    "slippagePct": 0.05,
+    "fractional": true
+  }
+}
